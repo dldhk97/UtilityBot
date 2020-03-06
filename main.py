@@ -8,7 +8,7 @@ import datetime
 
 from datetime import datetime
 from discord.ext import commands
-from message import Message, MessageType
+from message import Message, MessageType, BotEditType
 
 bot = commands.Bot('')
 bot_env = environment.BotEnv.instance()
@@ -38,12 +38,14 @@ async def help(ctx):
 
     GAMIE_EMOJI = bot_env.get_env('GAMIE_EMOJI')
     SPOILER_REACTION_EMOJI = bot_env.get_env('SPOILER_REACTION_EMOJI')
+    UNSPOILER_REACTION_EMOJI = bot_env.get_env('UNSPOILER_REACTION_EMOJI')
 
     embed.add_field(name='개미옵션 ' + USE_GAMIE_MODE, value='개미, 미개한 메시지가 보이면 개미 이모지를 답니다.', inline=False)
     embed.add_field(name='개미 리액션 옵션 ' + USE_GAMIE_REACTION_MODE, value=f'메시지에 개미 이모지 {GAMIE_EMOJI} 가 달리면 동조합니다.', inline=False)
     embed.add_field(name='스포일러 리액션 옵션 ' + USE_SPOILER_REACTION_MODE, 
-                    value=f'메시지에 스포일러 이모지 {SPOILER_REACTION_EMOJI} 가 달리면 메시지를 스포일러로 바꿉니다.\n' + \
-                        '``` 혹은 > 같은 마크다운 텍스트는 지원하지 않습니다.',
+                    value='메시지에 스포일러 이모지 ' + SPOILER_REACTION_EMOJI + ' 가 달리면 메시지를 스포일러로 바꿉니다.\n' + \
+                        '메시지에 언스포일러 이모지 ' + UNSPOILER_REACTION_EMOJI + ' 가 달리면 스포일러된 메시지를 공개합니다.\n' + \
+                        '``` 혹은 > 같은 마크다운 텍스트는 지원하지 않습니다.\n',
                    inline=False)
 
     embed.set_footer(text='Embed 스포일러는 정상적으로 작동하지 않을 수 있습니다.')
@@ -137,19 +139,18 @@ async def on_reaction_remove(reaction, user):
 async def make_em_spoiler(message, requester):
     log(from_text(message), '메시지 스포일러화 시작...')
 
-    # 봇이 스포일러 했던것을 한번 더 할 때
-    spoiled_by_bot = False
+    bot_edited_type = BotEditType.NONE
     if message.author.id is bot.user.id:
-        if message.content.startswith('Spoiled By') or message.embeds[0].title.startswith('Spoiled By'):
-            spoiled_by_bot = True
-            if not bot_env.get_env('SPOILER_AGAIN'):
-                return
+        bot_edited_type = BotEditType.check_type(message)
+        if bot_edited_type is BotEditType.SPOILED:
+            log(from_text(message), '이미 스포일러 되어있음')
+            return
 
     channel = message.channel
 
     try:
         msg = Message(message)
-        spoiled_msg = await msg.to_spoiler(requester, spoiled_by_bot)
+        spoiled_msg = await msg.to_spoiler(requester, bot_edited_type)
 
         if msg._message_type is MessageType.STRING:
             await channel.send(spoiled_msg)
@@ -176,35 +177,37 @@ async def make_em_spoiler(message, requester):
         await message.delete()
         log(from_text(message), '메시지 스포일러화 완료')
 
+
 async def make_em_unspoiler(message, requester):
     log(from_text(message), '메시지 언스포일러화 시작...')
 
-    # 봇에게 스포일러 당했는가?
-    spoiled_by_bot = False
+    bot_edited_type = BotEditType.NONE
     if message.author.id is bot.user.id:
-        if message.content.startswith('Spoiled By') or message.embeds[0].title.startswith('Spoiled By'):
-            spoiled_by_bot = True
+        bot_edited_type = BotEditType.check_type(message)
+        if bot_edited_type is BotEditType.UNSPOILED:
+            log(from_text(message), '이미 언스포일러 되어있음')
+            return
 
     channel = message.channel
 
     try:
         msg = Message(message)
-        unspoiled_msg = await msg.to_unspoiler(requester, spoiled_by_bot)
+        spoiled_msg = await msg.to_unspoiler(requester, bot_edited_type)
 
         if msg._message_type is MessageType.STRING:
-            await channel.send(unspoiled_msg)
+            await channel.send(spoiled_msg)
 
         elif msg._message_type is MessageType.ATTACHMENT:
-            await channel.send(file=unspoiled_msg._file, content=unspoiled_msg._content)
+            await channel.send(file=spoiled_msg._file, content=spoiled_msg._content)
 
         elif msg._message_type is MessageType.EMBED:
-            await channel.send(embed=unspoiled_msg)
+            await channel.send(embed=spoiled_msg)
 
         elif msg._message_type is MessageType.EMBED_IMAGE:
-            await channel.send(unspoiled_msg)
+            await channel.send(spoiled_msg)
 
         elif msg._message_type is MessageType.EMBED_VIDEO:
-            await channel.send(unspoiled_msg)
+            await channel.send(spoiled_msg)
 
         else:
             await channel.send('알 수 없는 메시지 타입입니다!')

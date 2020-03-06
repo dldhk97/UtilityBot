@@ -13,6 +13,25 @@ class MessageType(enum.Enum):
     EMBED_IMAGE = 3
     EMBED_VIDEO = 4
 
+
+class BotEditType(enum.Enum):
+    NONE = 0
+    SPOILED = 1
+    UNSPOILED = 2
+
+    def check_type(message):
+        if message.content.startswith('Spoiled By'):
+            return BotEditType.SPOILED
+        elif message.embeds and message.embeds[0].title and message.embeds[0].title.startswith('Spoiled By'):
+            return BotEditType.SPOILED
+        elif message.content.startswith('Unspoiled By'):
+            return BotEditType.UNSPOILED
+        elif message.embeds and message.embeds[0].title and message.embeds[0].title.startswith('Unspoiled By'):
+            return BotEditType.UNSPOILED
+        else:
+            return BotEditType.NONE
+
+
 class Attachment:
 
     def __init__(self, file, content):
@@ -27,124 +46,151 @@ class Message:
 
         date = utc.localize(message.created_at).astimezone(KST)
         self._date_str = str(date.strftime("%Y-%m-%d %H:%M"))
-        self._sender_metion = '<@' + str(message.author.id) + '>'
 
 
-    async def to_spoiler(self, requester, spoiled_by_bot=False):
-        requester_tag = 'Spoiled By <@' + str(requester.id) + '>\n'
-        org_tag = self._sender_metion + ' ' + self._date_str + '\n'
-        content = self._message.content
+    async def to_spoiler(self, requester, bot_edit_type=BotEditType.NONE):
+        if self._message_type is MessageType.EMBED:
+            requester_str = requester.name
+            org_str = self._message.author.name
+            content = self._message.embeds[0].title
+        else:
+            requester_str = str(requester.id)
+            org_str = str(self._message.author.id)
+            content = self._message.content
 
-        # 봇에 의해 스포일러된 것이면, 이전 스포일러 요청자 삭제
-        if spoiled_by_bot:
-            content = self.delete_requester_tag(content)
-            org_tag = ''
-            if self._message_type is MessageType.STRING:
-                return requester_tag + content
+        requester_tag = 'Spoiled By <@' + requester_str + '>'
+        org_tag = '<@' + org_str + '> ' + self._date_str
 
-            elif self._message_type is MessageType.EMBED:
-                embed = self._message.embeds[0]
-                requester_tag = 'Spoiled By ' + requester.name + '\n'
-                embed.title = requester_tag + self.delete_requester_tag(embed.title)
-                return embed
+        # 봇에 의해 스포일러 되거나 언스포일 된 것
+        if bot_edit_type is not BotEditType.NONE:
+            content = self.delete_requester_tag(content)    # 요청자 태그는 없앤다.
+            splited = content.split('\n',1)
+            try:
+                org_tag = splited[0]                        # 원본 정보 태그는 그대로 쓴다.
+                content = splited[1]                        # 원본 내용 추출
+            except IndexError:
+                content = ''
 
-            elif self._message_type is MessageType.EMBED_IMAGE or self._message_type is MessageType.EMBED_VIDEO:
-                return requester_tag + content
+        header = requester_tag +'\n' + org_tag + '\n'
 
         if self._message_type is MessageType.STRING:
             url = self.parse_url(content)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
             if url:
-                content = content.replace(url[0], url[0] + '\n')
+                content = content.replace(url[0], url[0] + ' ')
 
             if content.startswith('||') and content.endswith('||'):
-                content = content[2:-2]
+                pass
+            else:
+                content = '||' + content + '||'
 
-            return requester_tag + org_tag + '||' + content + '||'
+            return header + content
 
         elif self._message_type is MessageType.ATTACHMENT:
             attach = self._message.attachments[0]
             file = await attach.to_file()
-            file = await self.make_file_spoiler(file)
-            return Attachment(file, requester_tag + org_tag  + content)
+            file = self.make_file_spoiler(file)
+            if content:
+                content = '||' + content + '||'
+            content = header + content
+            return Attachment(file, content)
 
         elif self._message_type is MessageType.EMBED:
-            requester_tag = 'Spoiled By ' + requester.name + '\n'
-            org_tag = self._message.author.name + ' ' + self._date_str + '\n'
             embed = self._message.embeds[0]
-            embed.title = requester_tag + org_tag + '||' + embed.title + '||'
+            embed.title = header + '||' + content + '||'
             embed.description = '||' + embed.description + '||'
-            c = 0
 
+            url = self.parse_url(embed.url)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
+            if url:
+                content = content.replace(url[0], url[0] + ' ')
+            
+            c = 0
             for f in embed.fields:
                 n = '||' + f.name + '||'
                 v = '||' + f.value + '||'
                 embed.set_field_at(c, name=n, value=v, inline=f.inline)
                 c += 1
-            embed.add_field(name='footer', value='||' + embed.footer.text + '||', inline=False)                 # footer spoiler
-            embed.set_footer(text='')
+
+            if embed.footer:
+                embed.add_field(name='footer', value='||' + embed.footer.text + '||', inline=False)                 # footer spoiler
+                embed.set_footer(text='')
             return embed
 
         elif self._message_type is MessageType.EMBED_IMAGE or self._message_type is MessageType.EMBED_VIDEO:
             embed = self._message.embeds[0]
-            content = self.content_normalization(self._message.content)
-            content = content.replace(embed.url, embed.url + '\n')
+            content = content.replace(embed.url, embed.url + ' ')
             content = '||' + content + '||'
-            return requester_tag + org_tag + content
+            return header + content
 
 
-    async def to_unspoiler(self, requester, spoiled_by_bot):
-        print('WA!')
-        #header = 'Spoiled By <@' + str(requester.id) + '>\n' + self._sender_metion + ' ' + self._date_str + '\n'
+    async def to_unspoiler(self, requester, bot_edit_type=BotEditType.NONE):
+        if self._message_type is MessageType.EMBED:
+            requester_str = requester.name
+            org_str = self._message.author.name
+            content = self._message.embeds[0].title
+        else:
+            requester_str = str(requester.id)
+            org_str = str(self._message.author.id)
+            content = self._message.content
 
-        #if spoiled_by_bot:
-        #    if self._message_type is MessageType.STRING:
-        #        return self._message.content[2:-2]
-        #    elif self._message_type is MessageType.ATTACHMENT:
-        #        header = ''
-        #    elif self._message_type is MessageType.EMBED:
-        #        return self._message.embeds[0]
-        #    elif self._message_type is MessageType.EMBED_IMAGE or self._message_type is MessageType.EMBED_VIDEO:
-        #        return self._message.content
+        requester_tag = 'Unspoiled By <@' + requester_str + '>'
+        org_tag = '<@' + org_str + '> ' + self._date_str
 
-        #if self._message_type is MessageType.STRING:
-        #    content = self.content_normalization(self._message.content)
+        # 봇에 의해 스포일러 되거나 언스포일 된 것
+        if bot_edit_type is not BotEditType.NONE:
+            content = self.delete_requester_tag(content)    # 요청자 태그는 없앤다.
+            splited = content.split('\n',1)
+            try:
+                org_tag = splited[0]                        # 원본 정보 태그는 그대로 쓴다.
+                content = splited[1]                        # 원본 내용 추출
+            except IndexError:
+                content = ''
 
-        #    url = self.parse_url(content)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
-        #    if url:
-        #        content = content.replace(url[0], url[0] + '\n')
+        header = requester_tag +'\n' + org_tag + '\n'
 
-        #    if content.startswith('||') and content.endswith('||'):
-        #        content = content[2:-2]
+        if self._message_type is MessageType.STRING:
+            url = self.parse_url(content)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
+            if url:
+                content = content.replace(url[0], url[0] + ' ')
 
-        #    return header + '||' + content + '||'
+            content = content.replace('||', '')
+            return header + content
 
-        #elif self._message_type is MessageType.ATTACHMENT:
-        #    attach = self._message.attachments[0]
-        #    content = self._message.content
-        #    file = await attach.to_file()
-        #    file = await self.make_file_spoiler(file)
-        #    return Attachment(file, header + content)
+        elif self._message_type is MessageType.ATTACHMENT:
+            attach = self._message.attachments[0]
+            file = await attach.to_file()
+            file = self.make_file_unspoiler(file)
+            if content:
+                content = content.replace('||', '')
+            content = header + content
+            return Attachment(file, content)
 
-        #elif self._message_type is MessageType.EMBED:
-        #    header = 'Spoiled By ' + requester.name + '\n' + self._message.author.name + ' ' + self._date_str + '\n'
-        #    embed = self._message.embeds[0]
-        #    embed.title = header + '||' + embed.title + '||'
-        #    embed.description = '||' + embed.description + '||'
-        #    c = 0
-        #    for f in embed.fields:
-        #        n = '||' + f.name + '||'
-        #        v = '||' + f.value + '||'
-        #        embed.set_field_at(c, name=n, value=v, inline=f.inline)
-        #        c += 1
-        #    embed.add_field(name='footer', value='||' + embed.footer.text + '||', inline=False)                 # footer spoiler
-        #    return embed
+        elif self._message_type is MessageType.EMBED:
+            embed = self._message.embeds[0]
+            content = content.replace('||', '')
+            embed.title = header + content
+            embed.description = embed.description.replace('||', '')
 
-        #elif self._message_type is MessageType.EMBED_IMAGE or self._message_type is MessageType.EMBED_VIDEO:
-        #    embed = self._message.embeds[0]
-        #    content = self.content_normalization(self._message.content)
-        #    content = content.replace(embed.url, embed.url + '\n')
-        #    content = '||' + content + '||'
-        #    return header + content
+            url = self.parse_url(embed.url)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
+            if url:
+                content = content.replace(url[0], url[0] + ' ')
+            
+            c = 0
+            for f in embed.fields:
+                n = f.name.replace('||', '')
+                v = f.value.replace('||', '')
+                embed.set_field_at(c, name=n, value=v, inline=f.inline)
+                c += 1
+
+            if embed.footer:
+                embed.add_field(name='footer', value=embed.footer.text.replace('||', ''), inline=False)                 # footer spoiler
+                embed.set_footer(text='')
+            return embed
+
+        elif self._message_type is MessageType.EMBED_IMAGE or self._message_type is MessageType.EMBED_VIDEO:
+            embed = self._message.embeds[0]
+            content = content.replace(embed.url, embed.url + ' ')
+            content = content.replace('||', '')
+            return header + content
 
 
     def judge_type(self, message):
@@ -162,13 +208,21 @@ class Message:
             return MessageType.STRING
 
 
-    async def make_file_spoiler(self, file):
+    def make_file_spoiler(self, file):
         if not file.filename.startswith('SPOILER_'):
             file.filename = 'SPOILER_' + file.filename
         return file
 
+    def make_file_unspoiler(self, file):
+        if file.filename.startswith('SPOILER_'):
+            file.filename = file.filename.replace('SPOILER_', '')
+        return file
+
     def parse_url(self, str):
-        return re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$\-@\.&+:/?=]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', str)
+        if str:
+            return re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$\-@\.&+:/?=]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', str)
+        else:
+            return
 
 
     def content_normalization(self, content):

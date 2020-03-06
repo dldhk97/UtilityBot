@@ -17,7 +17,6 @@ def load_env():
     bot_env.env_initialize('USE_GAMIE_MODE')
     bot_env.env_initialize('USE_GAMIE_REACTION_MODE')
     bot_env.env_initialize('USE_SPOILER_REACTION_MODE')
-    bot_env.env_initialize('SPOILER_AGAIN')
 
     bot_env.env_initialize('GAMIE_EMOJI', True)
     bot_env.env_initialize('SPOILER_REACTION_EMOJI', True)
