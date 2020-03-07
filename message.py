@@ -72,17 +72,15 @@ class Message:
                 content = ''
 
         header = requester_tag +'\n' + org_tag + '\n'
+        if content:
+            content = self.str_unspoil(content)
 
         if self._message_type is MessageType.STRING:
             url = self.parse_url(content)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
             if url:
                 content = content.replace(url[0], url[0] + ' ')
-
-            if content.startswith('||') and content.endswith('||'):
-                pass
-            else:
+            if content:
                 content = '||' + content + '||'
-
             return header + content
 
         elif self._message_type is MessageType.ATTACHMENT:
@@ -118,7 +116,8 @@ class Message:
         elif self._message_type is MessageType.EMBED_IMAGE or self._message_type is MessageType.EMBED_VIDEO:
             embed = self._message.embeds[0]
             content = content.replace(embed.url, embed.url + ' ')
-            content = '||' + content + '||'
+            if content:
+                content = '||' + content + '||'
             return header + content
 
 
@@ -146,27 +145,25 @@ class Message:
                 content = ''
 
         header = requester_tag +'\n' + org_tag + '\n'
+        if content:
+            content = self.str_unspoil(content)
 
         if self._message_type is MessageType.STRING:
             url = self.parse_url(content)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
             if url:
                 content = content.replace(url[0], url[0] + ' ')
 
-            content = content.replace('||', '')
             return header + content
 
         elif self._message_type is MessageType.ATTACHMENT:
             attach = self._message.attachments[0]
             file = await attach.to_file()
             file = self.make_file_unspoiler(file)
-            if content:
-                content = content.replace('||', '')
             content = header + content
             return Attachment(file, content)
 
         elif self._message_type is MessageType.EMBED:
             embed = self._message.embeds[0]
-            content = content.replace('||', '')
             embed.title = header + content
             embed.description = embed.description.replace('||', '')
 
@@ -189,7 +186,6 @@ class Message:
         elif self._message_type is MessageType.EMBED_IMAGE or self._message_type is MessageType.EMBED_VIDEO:
             embed = self._message.embeds[0]
             content = content.replace(embed.url, embed.url + ' ')
-            content = content.replace('||', '')
             return header + content
 
 
@@ -213,10 +209,12 @@ class Message:
             file.filename = 'SPOILER_' + file.filename
         return file
 
+
     def make_file_unspoiler(self, file):
         if file.filename.startswith('SPOILER_'):
             file.filename = file.filename.replace('SPOILER_', '')
         return file
+
 
     def parse_url(self, str):
         if str:
@@ -225,18 +223,20 @@ class Message:
             return
 
 
-    def content_normalization(self, content):
-        #if '> ' in content:
-        #    content = content.replace('> ', '')
-        #if '```' in content:
-        #    content = content.replace('```', '')
-        if '||' in content:
-            content = content.replace('||', '')
-        return content
-
     def delete_requester_tag(self, content):
         c = content.split('\n',1)
         if len(c) > 1:
             return c[1]
         else:
             return ''
+
+    def str_unspoil(self, str):
+        c = str.count('||')
+
+        if c == 0:
+            return str
+        elif c % 2 == 0:
+            return str.replace('||', '', c)
+        else:
+            str = str.replace('||', '', c - 1)
+            return str.replace('||', '| | ', 1)
