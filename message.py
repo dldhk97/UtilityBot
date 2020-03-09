@@ -48,18 +48,19 @@ class Message:
         self._date_str = str(date.strftime("%Y-%m-%d %H:%M"))
 
 
-    async def to_spoiler(self, requester, bot_edit_type=BotEditType.NONE):
+    async def to_spoiler(self, requester, bot_edit_type=BotEditType.NONE, is_mention=False):
         if self._message_type is MessageType.EMBED:
-            requester_str = requester.name
-            org_str = self._message.author.name
+            requester_tag = 'Spoiled By ' + requester.name
+            org_tag = self._message.author.name + ' ' + self._date_str
             content = self._message.embeds[0].title
         else:
-            requester_str = str(requester.id)
-            org_str = str(self._message.author.id)
+            if is_mention:
+                requester_tag = 'Spoiled By <@' + str(requester.id) + '>'
+                org_tag = '<@' + str(self._message.author.id) + '> ' + self._date_str
+            else:
+                requester_tag = 'Spoiled By ' + requester.name
+                org_tag = self._message.author.name + ' ' + self._date_str
             content = self._message.content
-
-        requester_tag = 'Spoiled By <@' + requester_str + '>'
-        org_tag = '<@' + org_str + '> ' + self._date_str
 
         # 봇에 의해 스포일러 되거나 언스포일 된 것
         if bot_edit_type is not BotEditType.NONE:
@@ -121,18 +122,19 @@ class Message:
             return header + content
 
 
-    async def to_unspoiler(self, requester, bot_edit_type=BotEditType.NONE):
+    async def to_unspoiler(self, requester, bot_edit_type=BotEditType.NONE, is_mention=False):
         if self._message_type is MessageType.EMBED:
-            requester_str = requester.name
-            org_str = self._message.author.name
+            requester_tag = 'Unspoiled By ' + requester.name
+            org_tag = self._message.author.name + ' ' + self._date_str
             content = self._message.embeds[0].title
         else:
-            requester_str = str(requester.id)
-            org_str = str(self._message.author.id)
+            if is_mention:
+                requester_tag = 'Unspoiled By <@' + str(requester.id) + '>'
+                org_tag = '<@' + str(self._message.author.id) + '> ' + self._date_str
+            else:
+                requester_tag = 'Unspoiled By ' + requester.name
+                org_tag = self._message.author.name + ' ' + self._date_str
             content = self._message.content
-
-        requester_tag = 'Unspoiled By <@' + requester_str + '>'
-        org_tag = '<@' + org_str + '> ' + self._date_str
 
         # 봇에 의해 스포일러 되거나 언스포일 된 것
         if bot_edit_type is not BotEditType.NONE:

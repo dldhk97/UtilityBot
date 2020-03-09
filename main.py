@@ -148,9 +148,11 @@ async def make_em_spoiler(message, requester):
 
     channel = message.channel
 
+    is_mention = True if bot_env.get_env('SPOILER_MENTION') else False
+
     try:
         msg = Message(message)
-        spoiled_msg = await msg.to_spoiler(requester, bot_edited_type)
+        spoiled_msg = await msg.to_spoiler(requester, bot_edited_type, is_mention)
 
         if msg._message_type is MessageType.STRING:
             await channel.send(spoiled_msg)
@@ -190,9 +192,11 @@ async def make_em_unspoiler(message, requester):
 
     channel = message.channel
 
+    is_mention = True if bot_env.get_env('SPOILER_MENTION') else False
+
     try:
         msg = Message(message)
-        spoiled_msg = await msg.to_unspoiler(requester, bot_edited_type)
+        spoiled_msg = await msg.to_unspoiler(requester, bot_edited_type, is_mention)
 
         if msg._message_type is MessageType.STRING:
             await channel.send(spoiled_msg)
