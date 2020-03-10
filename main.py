@@ -43,24 +43,42 @@ async def cmd_help(ctx):
                   color=EMBED_COLOR)
 
     PREFIX = str(bot.command_prefix)
-    USE_GAMIE_MODE = '(사용중)' if bot_env.get_env('USE_GAMIE_MODE') else '(비활성화)'
-    USE_GAMIE_REACTION_MODE = '(사용중)' if bot_env.get_env('USE_GAMIE_REACTION_MODE') else '(비활성화)'
-    USE_SPOILER_REACTION_MODE = '(사용중)' if bot_env.get_env('USE_SPOILER_REACTION_MODE') else '(비활성화)'
-
+    
+    USE_GAMIE_MODE = 'ON' if bot_env.get_env('USE_GAMIE_MODE') else 'OFF'
+    USE_GAMIE_REACTION_MODE = 'ON' if bot_env.get_env('USE_GAMIE_REACTION_MODE') else 'OFF'
     GAMIE_EMOJI = bot_env.get_env('GAMIE_EMOJI')
+
+    USE_SPOILER_REACTION_MODE = 'ON' if bot_env.get_env('USE_SPOILER_REACTION_MODE') else 'OFF'
+    SPOILER_MENTION = 'ON' if bot_env.get_env('SPOILER_MENTION') else 'OFF'
     SPOILER_REACTION_EMOJI = bot_env.get_env('SPOILER_REACTION_EMOJI')
     UNSPOILER_REACTION_EMOJI = bot_env.get_env('UNSPOILER_REACTION_EMOJI')
 
-    embed.add_field(name='개미옵션 ' + USE_GAMIE_MODE, value='개미, 미개한 메시지가 보이면 개미 이모지를 답니다.', inline=False)
-    embed.add_field(name='개미 리액션 옵션 ' + USE_GAMIE_REACTION_MODE, value=f'메시지에 개미 이모지 {GAMIE_EMOJI} 가 달리면 동조합니다.', inline=False)
-    embed.add_field(name='스포일러 리액션 옵션 ' + USE_SPOILER_REACTION_MODE, 
+    MOVE_MENTION = 'ON' if bot_env.get_env('MOVE_MENTION') else 'OFF'
+    USE_IMPORTANT_CHANNEL_REACTION_MODE = 'ON' if bot_env.get_env('USE_IMPORTANT_CHANNEL_REACTION_MODE') else 'OFF'
+    IMPORTANT_CHANNEL_ID = bot_env.get_env('IMPORTANT_CHANNEL_ID')
+    IMPORTANT_CHANNEL_REACTION_EMOJI = bot_env.get_env('IMPORTANT_CHANNEL_REACTION_EMOJI')
+
+    USE_TRASH_CHANNEL_REACTION_MODE = 'ON' if bot_env.get_env('USE_TRASH_CHANNEL_REACTION_MODE') else 'OFF'
+    TRASH_CHANNEL_ID = bot_env.get_env('TRASH_CHANNEL_ID')
+    TRASH_CHANNEL_REACTION_EMOJI = bot_env.get_env('TRASH_CHANNEL_REACTION_EMOJI')
+
+    embed.add_field(name='스포일러 리액션 옵션-' + USE_SPOILER_REACTION_MODE + ' 멘션-' + SPOILER_MENTION, 
                     value='메시지에 스포일러 이모지 ' + SPOILER_REACTION_EMOJI + ' 가 달리면 메시지를 스포일러로 바꿉니다.\n' + \
                         '메시지에 언스포일러 이모지 ' + UNSPOILER_REACTION_EMOJI + ' 가 달리면 스포일러된 메시지를 공개합니다.\n' + \
                         '``` 혹은 > 같은 마크다운 텍스트는 지원하지 않습니다.\n',
                    inline=False)
-    embed.add_field(name='메시지 스포일러', value=f'{PREFIX}스포일러 [메시지ID] 로 메시지를 명령어로 스포일러 처리 할 수 있습니다.', inline=False)
-    embed.add_field(name='메시지 스포일러 해제', value=f'{PREFIX}언스포일러 [메시지ID] 로 메시지를 명령어로 스포일러 해제 처리 할 수 있습니다.', inline=False)
+    embed.add_field(name='중요 채널 리액션 옵션-' + USE_IMPORTANT_CHANNEL_REACTION_MODE + ' 멘션-' + MOVE_MENTION, 
+                    value='메시지에 중요 이모지 ' + IMPORTANT_CHANNEL_REACTION_EMOJI + ' 를 달면 중요 채널로 이동시킵니다.\n' + \
+                        '중요 채널 ID : ' + IMPORTANT_CHANNEL_ID,
+                   inline=False)
+    embed.add_field(name='휴지통 채널 리액션 옵션-' + USE_TRASH_CHANNEL_REACTION_MODE + ' 멘션-' + MOVE_MENTION, 
+                    value='메시지에 휴지통 이모지 ' + TRASH_CHANNEL_REACTION_EMOJI + ' 를 달면 휴지통 채널로 이동시킵니다.\n' + \
+                        '휴지통 채널 ID : ' + TRASH_CHANNEL_ID,
+                   inline=False)
+    embed.add_field(name='메시지 스포일러', value=f'{PREFIX}스포일러 [메시지ID] 로 메시지를 명령어로 스포일러 혹은 언스포일러 처리 할 수 있습니다.\n(언스포일러는 {PREFIX}언스포일러 [메시지ID]', inline=False)
     embed.add_field(name='메시지 이동', value=f'{PREFIX}이동 [메시지ID] [채널ID] 로 메시지를 명령어로 채널간 이동시킬 수 있습니다.', inline=False)
+    embed.add_field(name='개미옵션-' + USE_GAMIE_MODE, value='개미, 미개한 메시지가 보이면 개미 이모지를 답니다.', inline=False)
+    embed.add_field(name='개미 리액션 옵션-' + USE_GAMIE_REACTION_MODE, value=f'메시지에 개미 이모지 {GAMIE_EMOJI} 가 달리면 동조합니다.', inline=False)
 
     embed.set_footer(text='Embed 스포일러는 정상적으로 작동하지 않을 수 있습니다.')
     await ctx.channel.send(embed=embed)
@@ -109,11 +127,20 @@ async def on_reaction_add(reaction, user):
     if user.bot:
         return
 
-    valid_emojies = get_valid_emojies()
+    if not IS_READY:
+        raise BotException(ExceptionType.BOT_NOT_READY, True)
 
-    if reaction.emoji in valid_emojies:
+    emoji = reaction.emoji
+    target_emoji = None
+
+    for ve in get_valid_emojies():
+        if ve.encode('unicode-escape') in emoji.encode('unicode-escape'):
+            target_emoji = ve
+            break
+
+    if target_emoji:
         message = reaction.message
-        emoji = reaction.emoji
+        emoji = target_emoji
 
         if bot_env.get_env('USE_GAMIE_REACTION_MODE') is True:
             if emoji == bot_env.get_env('GAMIE_EMOJI'):
@@ -132,6 +159,21 @@ async def on_reaction_add(reaction, user):
                 log(from_text(message), '언스포일러 이모지 발견')
                 await spoiler_convert(False, message, user)
                 return
+
+        if bot_env.get_env('USE_IMPORTANT_CHANNEL_REACTION_MODE') is True:
+            if emoji == bot_env.get_env('IMPORTANT_CHANNEL_REACTION_EMOJI'):
+                log(from_text(message), '중요 채널 이모지 발견')
+                channel_id = bot_env.get_env('IMPORTANT_CHANNEL_ID')
+                await move_message(message, channel_id)
+                return
+
+        if bot_env.get_env('USE_TRASH_CHANNEL_REACTION_MODE') is True:
+            if emoji == bot_env.get_env('TRASH_CHANNEL_REACTION_EMOJI'):
+                log(from_text(message), '휴지통 채널 이모지 발견')
+                channel_id = bot_env.get_env('TRASH_CHANNEL_ID')
+                await move_message(message, channel_id)
+                return
+
 
 def get_valid_emojies():
     valid_emojies = []
@@ -173,6 +215,8 @@ async def spoiler_convert(is_spoiler, message, requester):
 
     channel = message.channel
 
+    await channel.trigger_typing()                          # 봇 상태를 타이핑중으로 변경.
+
     is_mention = bot_env.get_env('SPOILER_MENTION')
 
     try:
@@ -208,27 +252,29 @@ async def spoiler_convert(is_spoiler, message, requester):
         log(from_text(message), '메시지 변환 완료')
 
 
-async def move_message(ctx, message, target_channel):
-    log(from_text(ctx), '메시지 이동 시작...')
+async def move_message(message, target_channel_id):
+    log(from_text(message), '메시지 이동 시작...')
 
-    is_mention = bot_env.get_env('SPOILER_MENTION')
+    is_mention = bot_env.get_env('MOVE_MENTION')
 
     try:
         msg = Message(message)
-        header, content = await msg.split_header(ctx.author, is_mention)
+        header, content = await msg.split_header(message.author, is_mention)
         header = str(BotEditType.MOVED) + ' ' + header
         edited_message = await msg.edit(False, header, content)
+        target_channel = await bot.fetch_channel(target_channel_id)
         await send_edited(target_channel, msg._message_type, edited_message)
     except Exception as e:
-        await ctx.channel.send(e)
+        if e.code == 50001:
+            e = '해당 채널에 접근할 수 없습니다.'
+        log(from_text(message), e)
+        await message.channel.send(e)
     else:
         try:
             await message.delete()
         except:
             log(from_text(message), '기존 메시지 삭제 실패')
-        log(from_text(message), '메시지 변환 완료')
-
-    log(from_text(ctx), '메시지 이동 완료')
+        log(from_text(message), '메시지 이동 완료')
 
 
 async def send_edited(channel, message_type, edited_msg):
@@ -256,15 +302,14 @@ async def cmd_move_message(ctx):
     message_id = args[1]
     channel_id = args[2]
 
-    
-
     try:
         message = await ctx.channel.fetch_message(message_id)
-        channel = await bot.fetch_channel(channel_id)
-        await move_message(ctx, message, channel)
+        await move_message(message, channel_id)
     except Exception as e:
         if e.code == 10008:
             e = '메시지가 탐색되지 않았습니다.'
+        elif e.code == 50001:
+            e = '해당 채널에 접근할 수 없습니다.'
         elif e.code == 50035:
             e = '채널ID 혹은 메시지 ID가 올바르지 않습니다.'
         log(from_text(ctx), e)
@@ -289,6 +334,8 @@ async def cmd_spoiler_convert(ctx, is_spoiler):
     except Exception as e:
         if e.code == 10008:
             e = '메시지가 탐색되지 않았습니다.'
+        if e.code == 50001:
+            e = '해당 채널에 접근할 수 없습니다.'
         elif e.code == 50035:
             e = '메시지 ID가 올바르지 않습니다.'
         log(from_text(ctx), e)
@@ -321,4 +368,4 @@ if __name__ == '__main__':
         bot.command_prefix = bot_env.get_env('PREFIX')
         bot.run(bot_env.get_env('BOT_TOKEN'))
     except Exception as e:
-        print('load env failed.', e)
+        print('.env 파일을 읽어 오는 중 오류가 발생하였습니다.\n원인 : ',e)

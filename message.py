@@ -68,7 +68,7 @@ class Message:
         self._bot_edited_type = BotEditType.check_type(message)
 
 
-    async def split_header(self, requester, is_mention):
+    async def split_header(self, requester, is_mention=False):
         # EMBED인지 체크하고 content 결정
         if self._message_type is MessageType.EMBED:
             content = self._message.embeds[0].title

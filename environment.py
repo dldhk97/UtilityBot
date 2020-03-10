@@ -13,40 +13,61 @@ def load_env():
 
     bot_env.env_initialize('BOT_TOKEN')
     bot_env.env_initialize('PREFIX')
+    bot_env.env_initialize('OWNER_ID')
 
     bot_env.env_initialize('USE_GAMIE_MODE')
     bot_env.env_initialize('USE_GAMIE_REACTION_MODE')
-    bot_env.env_initialize('USE_SPOILER_REACTION_MODE')
-
-    bot_env.env_initialize('SPOILER_MENTION')
-
     bot_env.env_initialize('GAMIE_EMOJI', True)
+
+    bot_env.env_initialize('USE_SPOILER_REACTION_MODE')
+    bot_env.env_initialize('SPOILER_MENTION')
     bot_env.env_initialize('SPOILER_REACTION_EMOJI', True)
     bot_env.env_initialize('UNSPOILER_REACTION_EMOJI', True)
 
-    env_none_check('BOT_TOKEN', '봇 토큰이 없습니다.')
-    env_none_check('PREFIX', 'PREFIX가 없습니다.')
+    bot_env.env_initialize('MOVE_MENTION')
+    bot_env.env_initialize('USE_IMPORTANT_CHANNEL_REACTION_MODE')
+    bot_env.env_initialize('IMPORTANT_CHANNEL_ID')
+    bot_env.env_initialize('IMPORTANT_CHANNEL_REACTION_EMOJI', True)
+
+    bot_env.env_initialize('USE_TRASH_CHANNEL_REACTION_MODE')
+    bot_env.env_initialize('TRASH_CHANNEL_ID')
+    bot_env.env_initialize('TRASH_CHANNEL_REACTION_EMOJI', True)
+    
+    _env_none_check('BOT_TOKEN', '봇 토큰이 없습니다.')
+    _env_none_check('PREFIX', 'PREFIX가 없습니다.')
+    _env_none_check('OWNER_ID', '관리자 ID가 없습니다.')
 
     if bot_env.get_env('USE_GAMIE_MODE'):
-        env_none_check('GAMIE_EMOJI', '개미 옵션이 켜져있지만, 개미 이모지가 설정되어있지 않습니다.')
+        _env_none_check('GAMIE_EMOJI', '개미 옵션이 켜져있지만, 개미 이모지가 설정되어있지 않습니다.')
 
     if bot_env.get_env('USE_GAMIE_REACTION_MODE'):
-        env_none_check('GAMIE_EMOJI', '개미 리액션 옵션이 켜져있지만, 개미 이모지가 설정되어있지 않습니다.')
+        _env_none_check('GAMIE_EMOJI', '개미 리액션 옵션이 켜져있지만, 개미 이모지가 설정되어있지 않습니다.')
         bot_env._reaction_emojies.append('GAMIE_EMOJI')
 
     if bot_env.get_env('USE_SPOILER_REACTION_MODE'):
-        env_none_check('SPOILER_REACTION_EMOJI', '스포일러 옵션이 켜져있지만, 스포일러 이모지가 설정되어있지 않습니다.')
-        env_none_check('UNSPOILER_REACTION_EMOJI', '스포일러 옵션이 켜져있지만, 언스포일러 이모지가 설정되어있지 않습니다.')
+        _env_none_check('SPOILER_REACTION_EMOJI', '스포일러 옵션이 켜져있지만, 스포일러 이모지가 설정되어있지 않습니다.')
+        _env_none_check('UNSPOILER_REACTION_EMOJI', '스포일러 옵션이 켜져있지만, 언스포일러 이모지가 설정되어있지 않습니다.')
         bot_env._reaction_emojies.append('SPOILER_REACTION_EMOJI')
         bot_env._reaction_emojies.append('UNSPOILER_REACTION_EMOJI')
 
+    if bot_env.get_env('USE_IMPORTANT_CHANNEL_REACTION_MODE'):
+        _env_none_check('IMPORTANT_CHANNEL_ID', '중요 채널 리액션 이동 모드가 켜져있지만, 채널 ID가 설정되어있지 않습니다.')
+        _env_none_check('IMPORTANT_CHANNEL_REACTION_EMOJI', '중요 채널 리액션 이동 모드가 켜져있지만, 리액션 이모지가 설정되어있지 않습니다.')
+        bot_env._reaction_emojies.append('IMPORTANT_CHANNEL_REACTION_EMOJI')
 
-def env_none_check(key, error_msg):
-    if BotEnv.instance().get_env(key) is False:
+    if bot_env.get_env('USE_TRASH_CHANNEL_REACTION_MODE'):
+        _env_none_check('TRASH_CHANNEL_ID', '휴지통 채널 리액션 모드가 켜져있지만, 채널 ID가 설정되어있지 않습니다.')
+        _env_none_check('TRASH_CHANNEL_REACTION_EMOJI', '휴지통 채널 리액션 모드가 켜져있지만, 리액션 이모지가 설정되어있지 않습니다.')
+        bot_env._reaction_emojies.append('TRASH_CHANNEL_REACTION_EMOJI')
+        
+
+
+def _env_none_check(key, error_msg):
+    if not BotEnv.instance().get_env(key):
         raise Exception(error_msg)
 
 
-def emoji_convert(src):
+def _emoji_convert(src):
     src = src.replace('+', '')
 
     if '1F' in src:
@@ -87,7 +108,7 @@ class BotEnv():
     def env_initialize(self, key, is_emoji=False):
         arg = os.getenv(key)
         if is_emoji:
-            arg = emoji_convert(arg)
+            arg = _emoji_convert(arg)
         if arg is None:
             arg = False
         BotEnv.instance().set_env(key, arg)
