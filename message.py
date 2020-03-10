@@ -93,9 +93,6 @@ class Message:
             org_tag = org_str + ' ' + self._date_str
                 
         header = requester_tag +'\n' + org_tag + '\n'
-        
-        if content:
-            content = self.str_unspoil(content)
 
         return header, content
 
@@ -110,37 +107,33 @@ class Message:
         if self._message_type is MessageType.STRING:
             url = self.parse_url(content)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
             if url:
-                content = content.replace(url[0].strip(), url[0] + ' ')
+                content = content.replace(url[0], url[0] + ' ')
             if content:
-                content = spoiler_symbol + content + spoiler_symbol
+                content = spoiler_symbol + self.str_unspoil(content) + spoiler_symbol
             return header + content
 
         elif self._message_type is MessageType.ATTACHMENT:
             attach = self._message.attachments[0]
             file = await attach.to_file()
-            file = self.make_file_spoiler(file)
+            file = self.convert_file_name(is_spoiler, file)
             if content:
-                content = spoiler_symbol + content + spoiler_symbol
+                content = spoiler_symbol + self.str_unspoil(content) + spoiler_symbol
             return Attachment(file, header + content)
 
         elif self._message_type is MessageType.EMBED:
             embed = self._message.embeds[0]
-            embed.title = header + spoiler_symbol + content + spoiler_symbol
+            embed.title = header + spoiler_symbol + self.str_unspoil(content) + spoiler_symbol
             embed.description = spoiler_symbol + self.str_unspoil(embed.description) + spoiler_symbol
-
-            url = self.parse_url(embed.url)                                   # 컨텐츠 안에 URL 있으면 따로 처리해줌.
-            if url:
-                content = content.replace(url[0], url[0] + ' ')
             
             c = 0
             for f in embed.fields:
-                n = spoiler_symbol + f.name + spoiler_symbol
-                v = spoiler_symbol + f.value + spoiler_symbol
+                n = spoiler_symbol + self.str_unspoil(f.name) + spoiler_symbol
+                v = spoiler_symbol + self.str_unspoil(f.value) + spoiler_symbol
                 embed.set_field_at(c, name=n, value=v, inline=f.inline)
                 c += 1
 
             if embed.footer:
-                footer_str = spoiler_symbol + embed.footer.text + spoiler_symbol
+                footer_str = spoiler_symbol + self.str_unspoil(embed.footer.text) + spoiler_symbol
                 embed.add_field(name='footer', value=footer_str, inline=False)
                 embed.set_footer(text='')
             return embed
@@ -148,8 +141,8 @@ class Message:
         elif self._message_type in [MessageType.EMBED_IMAGE, MessageType.EMBED_VIDEO]:
             embed = self._message.embeds[0]
             if content:
-                content = content.replace(embed.url, embed.url.strip() + ' ')
-                content = spoiler_symbol + content + spoiler_symbol
+                content = content.replace(embed.url, embed.url + ' ')
+                content = spoiler_symbol + self.str_unspoil(content) + spoiler_symbol
             return header + content
 
 
@@ -179,16 +172,14 @@ class Message:
         else:
             return MessageType.STRING
 
+    def convert_file_name(self, is_spoiler, file):
+        if is_spoiler:
+            if not file.filename.startswith('SPOILER_'):
+                file.filename = 'SPOILER_' + file.filename
+        else:
+            if file.filename.startswith('SPOILER_'):
+                file.filename = file.filename.replace('SPOILER_', '')
 
-    def make_file_spoiler(self, file):
-        if not file.filename.startswith('SPOILER_'):
-            file.filename = 'SPOILER_' + file.filename
-        return file
-
-
-    def make_file_unspoiler(self, file):
-        if file.filename.startswith('SPOILER_'):
-            file.filename = file.filename.replace('SPOILER_', '')
         return file
 
 
