@@ -69,11 +69,11 @@ async def cmd_help(ctx):
                    inline=False)
     embed.add_field(name='중요 채널 리액션 옵션-' + USE_IMPORTANT_CHANNEL_REACTION_MODE + ' 멘션-' + MOVE_MENTION, 
                     value='메시지에 중요 이모지 ' + IMPORTANT_CHANNEL_REACTION_EMOJI + ' 를 달면 중요 채널로 이동시킵니다.\n' + \
-                        '중요 채널 ID : ' + IMPORTANT_CHANNEL_ID,
+                        '중요 채널 : ' +  f'<#{IMPORTANT_CHANNEL_ID}> (ID:' + IMPORTANT_CHANNEL_ID + ')',
                    inline=False)
     embed.add_field(name='휴지통 채널 리액션 옵션-' + USE_TRASH_CHANNEL_REACTION_MODE + ' 멘션-' + MOVE_MENTION, 
                     value='메시지에 휴지통 이모지 ' + TRASH_CHANNEL_REACTION_EMOJI + ' 를 달면 휴지통 채널로 이동시킵니다.\n' + \
-                        '휴지통 채널 ID : ' + TRASH_CHANNEL_ID,
+                        '휴지통 채널 : ' +  f'<#{TRASH_CHANNEL_ID}> (ID:' + TRASH_CHANNEL_ID + ')',
                    inline=False)
     embed.add_field(name='메시지 스포일러', value=f'{PREFIX}스포일러 [메시지ID] 로 메시지를 명령어로 스포일러 혹은 언스포일러 처리 할 수 있습니다.\n(언스포일러는 {PREFIX}언스포일러 [메시지ID]', inline=False)
     embed.add_field(name='메시지 이동', value=f'{PREFIX}이동 [메시지ID] [채널ID] 로 메시지를 명령어로 채널간 이동시킬 수 있습니다.', inline=False)

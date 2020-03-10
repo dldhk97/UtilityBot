@@ -3,11 +3,10 @@ import enum
 class ExceptionType(enum.Enum):
     ALREADY_SPOILER = 0
     ALREADY_UNSPOILER = 1
-    
     WRONG_COMMAND = 2
     WRONG_COMMAND_ARGS = 3
-
     BOT_NOT_READY = 4
+    PERMISSION_DENIED = 5
 
     UNKNOWN = -1
 
@@ -22,6 +21,8 @@ class ExceptionType(enum.Enum):
             return 'WRONG_COMMAND_ARGS : '
         elif self is ExceptionType.BOT_NOT_READY:
             return 'BOT_NOT_READY : '
+        elif self is ExceptionType.PERMISSION_DENIED:
+            return 'PERMISSION_DENIED : '
         else:
             return 'UNKNOWN : '
 
@@ -51,5 +52,7 @@ class BotException(Exception):
             return '명령어 인자가 올바르지 않습니다.'
         elif self._exception_type is ExceptionType.BOT_NOT_READY:
             return '봇이 아직 준비되지 않았습니다.'
+        elif self._exception_type is ExceptionType.PERMISSION_DENIED:
+            return '권한이 없습니다.'
         else:
             return '알 수 없는 오류입니다.'
