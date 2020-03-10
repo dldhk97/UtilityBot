@@ -9,25 +9,35 @@ import datetime
 from datetime import datetime
 from discord.ext import commands
 from message import Message, MessageType, BotEditType
+from botexception import ExceptionType, BotException
 
 bot = commands.Bot('')
 bot_env = environment.BotEnv.instance()
 
 EMBED_COLOR = 0xd6f9ff
 
+IS_READY = False
+
 
 @bot.event
 async def on_ready(): #봇이 준비되었을 때 출력할 내용
+    global IS_READY
+    bot_env.set_env('BOT_ID', bot.user.id)
+
     print(bot.user.name)
     print(bot.user.id)
 
     await bot.change_presence(activity=discord.Game(name=f'{bot.command_prefix}도움'))
 
     print('Ready to go!')
-
+    IS_READY = True
 
 
 async def help(ctx):
+    if not IS_READY:
+        log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
+        return
+
     log(from_text(ctx), '도움')
     embed = discord.Embed(title='유틸리티 봇입니다.',
                   description='자세한 기능은 아래를 참조하세요.',
@@ -53,28 +63,27 @@ async def help(ctx):
 
 
 @bot.event
-async def on_message(message):
-    if message.author.bot:
+async def on_message(ctx):
+    if ctx.author.bot:
         return
 
-    if message.content.startswith(f'{bot.command_prefix}도움'):
-        await help(message)
+    if ctx.content.startswith(f'{bot.command_prefix}도움'):
+        await help(ctx)
         return
-    elif message.content.startswith(f'{bot.command_prefix}이동'):
-        await move_message(message)
+    elif ctx.content.startswith(f'{bot.command_prefix}이동'):
+        await move_message(ctx)
         return
 
     if bot_env.get_env('USE_GAMIE_MODE') is True:
-        if ('개미' in message.content) or ('미개' in message.content):
-            log(from_text(message), '개미 발견')
-            await add_reaction(message, bot_env.get_env('GAMIE_EMOJI'))
-            log(from_text(message), '개미 이모지 달았음')
+        if ('개미' in ctx.content) or ('미개' in ctx.content):
+            if not IS_READY:
+                log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
+                return
+
+            log(from_text(ctx), '개미 발견')
+            await ctx.add_reaction(bot_env.get_env('GAMIE_EMOJI'))
+            log(from_text(ctx), '개미 이모지 달았음')
             return
-
-
-async def add_reaction(message, emoji):
-    channel = message.channel
-    await message.add_reaction(emoji)
 
 
 @bot.event
@@ -90,18 +99,21 @@ async def on_reaction_add(reaction, user):
 
         if bot_env.get_env('USE_GAMIE_REACTION_MODE') is True:
             if emoji == bot_env.get_env('GAMIE_EMOJI'):
+                if not IS_READY:
+                    log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
+                    return
                 log(from_text(message), '개미 이모지 발견')
-                await add_reaction(message, bot_env.get_env('GAMIE_EMOJI'))
+                await message.add_reaction(bot_env.get_env('GAMIE_EMOJI'))
                 return
         
         if bot_env.get_env('USE_SPOILER_REACTION_MODE') is True:
             if emoji == bot_env.get_env('SPOILER_REACTION_EMOJI'):
                 log(from_text(message), '스포일러 이모지 발견')
-                await make_em_spoiler(message, user)
+                await spoiler_convert(True, message, user)
                 return
             elif emoji == bot_env.get_env('UNSPOILER_REACTION_EMOJI'):
                 log(from_text(message), '언스포일러 이모지 발견')
-                await make_em_unspoiler(message, user)
+                await spoiler_convert(False, message, user)
                 return
 
 def get_valid_emojies():
@@ -136,15 +148,12 @@ async def on_reaction_remove(reaction, user):
                 return
 
 
-async def make_em_spoiler(message, requester):
-    log(from_text(message), '메시지 스포일러화 시작...')
+async def spoiler_convert(is_spoiler, message, requester):
+    if not IS_READY:
+        log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
+        return
 
-    bot_edited_type = BotEditType.NONE
-    if message.author.id is bot.user.id:
-        bot_edited_type = BotEditType.check_type(message)
-        if bot_edited_type is BotEditType.SPOILED:
-            log(from_text(message), '이미 스포일러 되어있음')
-            return
+    log(from_text(message), '메시지 변환 시작...')
 
     channel = message.channel
 
@@ -152,9 +161,10 @@ async def make_em_spoiler(message, requester):
 
     try:
         msg = Message(message)
-        spoiled_msg = await msg.to_spoiler(requester, bot_edited_type, is_mention)
 
-        if msg._message_type is MessageType.STRING:
+        spoiled_msg = await msg.convert(is_spoiler, requester, is_mention)
+
+        if msg._message_type in [MessageType.STRING, MessageType.EMBED_IMAGE, MessageType.EMBED_VIDEO]:
             await channel.send(spoiled_msg)
 
         elif msg._message_type is MessageType.ATTACHMENT:
@@ -163,67 +173,29 @@ async def make_em_spoiler(message, requester):
         elif msg._message_type is MessageType.EMBED:
             await channel.send(embed=spoiled_msg)
 
-        elif msg._message_type is MessageType.EMBED_IMAGE:
-            await channel.send(spoiled_msg)
-
-        elif msg._message_type is MessageType.EMBED_VIDEO:
-            await channel.send(spoiled_msg)
-
         else:
             await channel.send('알 수 없는 메시지 타입입니다!')
             return
 
-    except Exception as e:
-        await channel.send(e)
-    else:
-        await message.delete()
-        log(from_text(message), '메시지 스포일러화 완료')
-
-
-async def make_em_unspoiler(message, requester):
-    log(from_text(message), '메시지 언스포일러화 시작...')
-
-    bot_edited_type = BotEditType.NONE
-    if message.author.id is bot.user.id:
-        bot_edited_type = BotEditType.check_type(message)
-        if bot_edited_type is BotEditType.UNSPOILED:
-            log(from_text(message), '이미 언스포일러 되어있음')
-            return
-
-    channel = message.channel
-
-    is_mention = True if bot_env.get_env('SPOILER_MENTION') else False
-
-    try:
-        msg = Message(message)
-        spoiled_msg = await msg.to_unspoiler(requester, bot_edited_type, is_mention)
-
-        if msg._message_type is MessageType.STRING:
-            await channel.send(spoiled_msg)
-
-        elif msg._message_type is MessageType.ATTACHMENT:
-            await channel.send(file=spoiled_msg._file, content=spoiled_msg._content)
-
-        elif msg._message_type is MessageType.EMBED:
-            await channel.send(embed=spoiled_msg)
-
-        elif msg._message_type is MessageType.EMBED_IMAGE:
-            await channel.send(spoiled_msg)
-
-        elif msg._message_type is MessageType.EMBED_VIDEO:
-            await channel.send(spoiled_msg)
-
+    except BotException as be:
+        if be._exception_type in [ExceptionType.ALREADY_SPOILER, ExceptionType.ALREADY_UNSPOILER]:
+            log(from_text(message), be)
         else:
-            await channel.send('알 수 없는 메시지 타입입니다!')
-            return
-
+            await channel.send(be)
     except Exception as e:
         await channel.send(e)
     else:
-        await message.delete()
-        log(from_text(message), '메시지 스포일러화 완료')
+        try:
+            await message.delete()
+        except:
+            log(from_text(message), '기존 메시지 삭제 실패')
+        log(from_text(message), '메시지 변환 완료')
 
 async def move_message(message):
+    if not IS_READY:
+        log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
+        return
+
     log(from_text(message), '메시지 이동 시작...')
 
     

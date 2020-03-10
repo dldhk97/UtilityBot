@@ -1,0 +1,36 @@
+import enum
+
+class ExceptionType(enum.Enum):
+    ALREADY_SPOILER = 0
+    ALREADY_UNSPOILER = 1
+    UNKNOWN = -1
+
+    def __str__(self):
+        if self is ExceptionType.ALREADY_SPOILER:
+            return 'ALREADY_SPOILER : '
+        elif self is ExceptionType.ALREADY_UNSPOILER:
+            return 'ALREADY_UNSPOILER : '
+        else:
+            return 'UNKNOWN : '
+
+class BotException(Exception):
+    
+
+    def __init__(self, exception_type, reason=None):
+        self._exception_type = exception_type
+        if reason is None:
+            self._reason = self.default_reason()
+        else:
+            self._reason = reason
+
+    def __str__(self):
+        return str(self._exception_type) + self._reason
+
+
+    def default_reason(self):
+        if self._exception_type is ExceptionType.ALREADY_SPOILER:
+            return '이미 스포일러화 되어있습니다.'
+        elif self._exception_type is ExceptionType.ALREADY_UNSPOILER:
+            return '이미 언스포일러화 되어있습니다.'
+        else:
+            return '알 수 없는 오류입니다.'
