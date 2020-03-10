@@ -33,15 +33,16 @@ async def on_ready(): #봇이 준비되었을 때 출력할 내용
     IS_READY = True
 
 
-async def help(ctx):
+async def cmd_help(ctx):
     if not IS_READY:
-        log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
-        return
+        raise BotException(ExceptionType.BOT_NOT_READY, True)
 
     log(from_text(ctx), '도움')
     embed = discord.Embed(title='유틸리티 봇입니다.',
                   description='자세한 기능은 아래를 참조하세요.',
                   color=EMBED_COLOR)
+
+    PREFIX = str(bot.command_prefix)
     USE_GAMIE_MODE = '(사용중)' if bot_env.get_env('USE_GAMIE_MODE') else '(비활성화)'
     USE_GAMIE_REACTION_MODE = '(사용중)' if bot_env.get_env('USE_GAMIE_REACTION_MODE') else '(비활성화)'
     USE_SPOILER_REACTION_MODE = '(사용중)' if bot_env.get_env('USE_SPOILER_REACTION_MODE') else '(비활성화)'
@@ -57,6 +58,9 @@ async def help(ctx):
                         '메시지에 언스포일러 이모지 ' + UNSPOILER_REACTION_EMOJI + ' 가 달리면 스포일러된 메시지를 공개합니다.\n' + \
                         '``` 혹은 > 같은 마크다운 텍스트는 지원하지 않습니다.\n',
                    inline=False)
+    embed.add_field(name='메시지 스포일러', value=f'{PREFIX}스포일러 [메시지ID] 로 메시지를 명령어로 스포일러 처리 할 수 있습니다.', inline=False)
+    embed.add_field(name='메시지 스포일러 해제', value=f'{PREFIX}언스포일러 [메시지ID] 로 메시지를 명령어로 스포일러 해제 처리 할 수 있습니다.', inline=False)
+    embed.add_field(name='메시지 이동', value=f'{PREFIX}이동 [메시지ID] [채널ID] 로 메시지를 명령어로 채널간 이동시킬 수 있습니다.', inline=False)
 
     embed.set_footer(text='Embed 스포일러는 정상적으로 작동하지 않을 수 있습니다.')
     await ctx.channel.send(embed=embed)
@@ -67,23 +71,37 @@ async def on_message(ctx):
     if ctx.author.bot:
         return
 
-    if ctx.content.startswith(f'{bot.command_prefix}도움'):
-        await help(ctx)
-        return
-    elif ctx.content.startswith(f'{bot.command_prefix}이동'):
-        await move_message(ctx)
-        return
+    try:
+        if ctx.content.startswith(f'{bot.command_prefix}도움'):
+            await cmd_help(ctx)
+            return
+        elif ctx.content.startswith(f'{bot.command_prefix}이동'):
+            await cmd_move_message(ctx)
+            return
+        elif ctx.content.startswith(f'{bot.command_prefix}스포일러'):
+            await cmd_spoiler_convert(ctx, True)
+            return
+        elif ctx.content.startswith(f'{bot.command_prefix}언스포일러'):
+            await cmd_spoiler_convert(ctx, False)
+            return
 
-    if bot_env.get_env('USE_GAMIE_MODE') is True:
-        if ('개미' in ctx.content) or ('미개' in ctx.content):
-            if not IS_READY:
-                log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
+        if bot_env.get_env('USE_GAMIE_MODE') is True:
+            if ('개미' in ctx.content) or ('미개' in ctx.content):
+                if not IS_READY:
+                    raise BotException(ExceptionType.BOT_NOT_READY)
+
+                log(from_text(ctx), '개미 발견')
+                await ctx.add_reaction(bot_env.get_env('GAMIE_EMOJI'))
+                log(from_text(ctx), '개미 이모지 달았음')
                 return
 
-            log(from_text(ctx), '개미 발견')
-            await ctx.add_reaction(bot_env.get_env('GAMIE_EMOJI'))
-            log(from_text(ctx), '개미 이모지 달았음')
-            return
+    except BotException as be:
+        log(from_text(ctx), be)
+        if be._notice:
+            await ctx.channel.send(be._reason)
+    except Exception as e:
+        log(from_text(ctx), e)
+        await ctx.channel.send(e)
 
 
 @bot.event
@@ -100,8 +118,7 @@ async def on_reaction_add(reaction, user):
         if bot_env.get_env('USE_GAMIE_REACTION_MODE') is True:
             if emoji == bot_env.get_env('GAMIE_EMOJI'):
                 if not IS_READY:
-                    log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
-                    return
+                    raise BotException(ExceptionType.BOT_NOT_READY)
                 log(from_text(message), '개미 이모지 발견')
                 await message.add_reaction(bot_env.get_env('GAMIE_EMOJI'))
                 return
@@ -150,32 +167,31 @@ async def on_reaction_remove(reaction, user):
 
 async def spoiler_convert(is_spoiler, message, requester):
     if not IS_READY:
-        log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
-        return
+        raise BotException(ExceptionType.BOT_NOT_READY, True)
 
     log(from_text(message), '메시지 변환 시작...')
 
     channel = message.channel
 
-    is_mention = True if bot_env.get_env('SPOILER_MENTION') else False
+    is_mention = bot_env.get_env('SPOILER_MENTION')
 
     try:
         msg = Message(message)
-
-        spoiled_msg = await msg.convert(is_spoiler, requester, is_mention)
-
-        if msg._message_type in [MessageType.STRING, MessageType.EMBED_IMAGE, MessageType.EMBED_VIDEO]:
-            await channel.send(spoiled_msg)
-
-        elif msg._message_type is MessageType.ATTACHMENT:
-            await channel.send(file=spoiled_msg._file, content=spoiled_msg._content)
-
-        elif msg._message_type is MessageType.EMBED:
-            await channel.send(embed=spoiled_msg)
-
+        if is_spoiler:
+            if msg._bot_edited_type is BotEditType.SPOILED:
+                raise BotException(ExceptionType.ALREADY_SPOILER)
         else:
-            await channel.send('알 수 없는 메시지 타입입니다!')
-            return
+            if msg._bot_edited_type is BotEditType.UNSPOILED:
+                raise BotException(ExceptionType.ALREADY_SPOILER)
+
+        bot_edit_type = BotEditType.SPOILED if is_spoiler else BotEditType.UNSPOILED
+
+        # extract header & content from message obj
+        header, content = await msg.split_header(requester, is_mention)
+        header = str(bot_edit_type) + ' ' + header
+        edited_msg = await msg.edit(is_spoiler, header, content)
+        
+        await send_edited(channel, msg._message_type, edited_msg)
 
     except BotException as be:
         if be._exception_type in [ExceptionType.ALREADY_SPOILER, ExceptionType.ALREADY_UNSPOILER]:
@@ -191,20 +207,97 @@ async def spoiler_convert(is_spoiler, message, requester):
             log(from_text(message), '기존 메시지 삭제 실패')
         log(from_text(message), '메시지 변환 완료')
 
-async def move_message(message):
-    if not IS_READY:
-        log(from_text(ctx), '봇이 아직 준비되지 않았습니다!')
+
+async def move_message(ctx, message, target_channel):
+    log(from_text(ctx), '메시지 이동 시작...')
+
+    is_mention = bot_env.get_env('SPOILER_MENTION')
+
+    try:
+        msg = Message(message)
+        header, content = await msg.split_header(ctx.author, is_mention)
+        header = str(BotEditType.MOVED) + ' ' + header
+        edited_message = await msg.edit(False, header, content)
+        await send_edited(target_channel, msg._message_type, edited_message)
+    except Exception as e:
+        await ctx.channel.send(e)
+    else:
+        try:
+            await message.delete()
+        except:
+            log(from_text(message), '기존 메시지 삭제 실패')
+        log(from_text(message), '메시지 변환 완료')
+
+    log(from_text(ctx), '메시지 이동 완료')
+
+
+async def send_edited(channel, message_type, edited_msg):
+    if message_type in [MessageType.STRING, MessageType.EMBED_IMAGE, MessageType.EMBED_VIDEO]:
+        await channel.send(edited_msg)
+
+    elif message_type is MessageType.ATTACHMENT:
+        await channel.send(file=edited_msg._file, content=edited_msg._content)
+
+    elif message_type is MessageType.EMBED:
+        await channel.send(embed=edited_msg)
+
+    else:
+        await channel.send('알 수 없는 메시지 타입입니다!')
         return
 
-    log(from_text(message), '메시지 이동 시작...')
+async def cmd_move_message(ctx):
+    if not IS_READY:
+        raise BotException(ExceptionType.BOT_NOT_READY, True)
+
+    args = ctx.content.split(' ')
+    if len(args) <= 2:
+        raise BotException(ExceptionType.WRONG_COMMAND_ARGS, True, f'사용법 : {bot.command_prefix}이동 [메시지ID] [채널]')
+
+    message_id = args[1]
+    channel_id = args[2]
 
     
 
+    try:
+        message = await ctx.channel.fetch_message(message_id)
+        channel = await bot.fetch_channel(channel_id)
+        await move_message(ctx, message, channel)
+    except Exception as e:
+        if e.code == 10008:
+            e = '메시지가 탐색되지 않았습니다.'
+        elif e.code == 50035:
+            e = '채널ID 혹은 메시지 ID가 올바르지 않습니다.'
+        log(from_text(ctx), e)
+        await ctx.channel.send(e)
+
+    return
+
+
+async def cmd_spoiler_convert(ctx, is_spoiler):
+    if not IS_READY:
+        raise BotException(ExceptionType.BOT_NOT_READY, True)
+
+    args = ctx.content.split(' ')
+    if len(args) <= 1:
+        raise BotException(ExceptionType.WRONG_COMMAND_ARGS, True, f'사용법 : {bot.command_prefix}[스포일러|언스포일러] [메시지ID]')
+
+    message_id = args[1]
+
+    try:
+        message = await ctx.channel.fetch_message(message_id)
+        await spoiler_convert(is_spoiler, message, ctx.author)
+    except Exception as e:
+        if e.code == 10008:
+            e = '메시지가 탐색되지 않았습니다.'
+        elif e.code == 50035:
+            e = '메시지 ID가 올바르지 않습니다.'
+        log(from_text(ctx), e)
+        await ctx.channel.send(e)
+
+    return
+
+    
 def from_text(ctx):
-    # msg_fr = msg.server.name + ' > ' + msg.channel.name + ' > ' + msg.author.name
-    # msg.server --> msg.guild
-    # https://discordpy.readthedocs.io/en/latest/migrating.html#server-is-now-guild
-    
     channel_type = ctx.channel.type.value
     if channel_type == 1:
         return f'DM > {ctx.author.name}'
@@ -216,11 +309,11 @@ def from_text(ctx):
 def log(fr, text):
     print(f'{fr} | {str(datetime.now())} | {text}')
 
-
 @bot.event
 async def on_command_error(ctx, error):
     log(from_text(ctx), error)
     await ctx.channel.send(error)
+
 
 if __name__ == '__main__':
     try:
