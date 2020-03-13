@@ -267,6 +267,8 @@ async def move_message(message, target_channel_id):
     except Exception as e:
         if e.code == 50001:
             e = '해당 채널에 접근할 수 없습니다.'
+        elif e.code == 50035:
+            e = '알 수 없는 채널입니다.'
         log(from_text(message), e)
         await message.channel.send(e)
     else:
@@ -301,6 +303,9 @@ async def cmd_move_message(ctx):
 
     message_id = args[1]
     channel_id = args[2]
+
+    if channel_id.startswith('<#') and channel_id.endswith('>'):
+        channel_id = channel_id[2:-1]
 
     try:
         message = await ctx.channel.fetch_message(message_id)
