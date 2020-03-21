@@ -131,3 +131,5 @@ dmypy.json
 # vs
 
 .vs/
+.vscode/
+*.code-workspace
