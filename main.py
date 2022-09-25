@@ -214,7 +214,7 @@ async def spoiler_convert(is_spoiler, message, requester):
 
     channel = message.channel
 
-    await channel.trigger_typing()                          # 봇 상태를 타이핑중으로 변경.
+    await channel.typing()                          # 봇 상태를 타이핑중으로 변경.
 
     is_mention = bot_env.get_env('SPOILER_MENTION')
 
@@ -227,7 +227,10 @@ async def spoiler_convert(is_spoiler, message, requester):
             if msg._bot_edited_type is BotEditType.UNSPOILED:
                 raise BotException(ExceptionType.ALREADY_SPOILER)
 
-        bot_edit_type = BotEditType.SPOILED if is_spoiler else BotEditType.UNSPOILED
+        if is_spoiler:
+            bot_edit_type = BotEditType.SPOILED
+        else:
+            bot_edit_type = BotEditType.UNSPOILED
 
         # extract header & content from message obj
         header, content = await msg.split_header(requester, is_mention)
