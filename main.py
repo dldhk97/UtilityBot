@@ -1,17 +1,16 @@
 import discord
-import asyncio
-import re
-import os
-import sys
 import environment
 import datetime
 
 from datetime import datetime
-from discord.ext import commands
 from message import Message, MessageType, BotEditType
 from botexception import ExceptionType, BotException
 
-bot = commands.Bot('')
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = discord.Client(intents=intents)
+
 bot_env = environment.BotEnv.instance()
 
 EMBED_COLOR = 0xd6f9ff
@@ -19,15 +18,15 @@ EMBED_COLOR = 0xd6f9ff
 IS_READY = False
 
 
-@bot.event
+@client.event
 async def on_ready(): #봇이 준비되었을 때 출력할 내용
     global IS_READY
-    bot_env.set_env('BOT_ID', bot.user.id)
+    bot_env.set_env('BOT_ID', client.user.id)
 
-    print(bot.user.name)
-    print(bot.user.id)
+    print(client.user.name)
+    print(client.user.id)
 
-    await bot.change_presence(activity=discord.Game(name=f'{bot.command_prefix}도움'))
+    await client.change_presence(activity=discord.Game(name=f'{client.command_prefix}도움'))
 
     print('Ready to go!')
     IS_READY = True
@@ -42,7 +41,7 @@ async def cmd_help(ctx):
                   description='자세한 기능은 아래를 참조하세요.',
                   color=EMBED_COLOR)
 
-    PREFIX = str(bot.command_prefix)
+    PREFIX = str(client.command_prefix)
     
     USE_GAMIE_MODE = 'ON' if bot_env.get_env('USE_GAMIE_MODE') else 'OFF'
     USE_GAMIE_REACTION_MODE = 'ON' if bot_env.get_env('USE_GAMIE_REACTION_MODE') else 'OFF'
@@ -84,22 +83,22 @@ async def cmd_help(ctx):
     await ctx.channel.send(embed=embed)
 
 
-@bot.event
+@client.event
 async def on_message(ctx):
     if ctx.author.bot:
         return
 
     try:
-        if ctx.content.startswith(f'{bot.command_prefix}도움'):
+        if ctx.content.startswith(f'{client.command_prefix}도움'):
             await cmd_help(ctx)
             return
-        elif ctx.content.startswith(f'{bot.command_prefix}이동'):
+        elif ctx.content.startswith(f'{client.command_prefix}이동'):
             await cmd_move_message(ctx)
             return
-        elif ctx.content.startswith(f'{bot.command_prefix}스포일러'):
+        elif ctx.content.startswith(f'{client.command_prefix}스포일러'):
             await cmd_spoiler_convert(ctx, True)
             return
-        elif ctx.content.startswith(f'{bot.command_prefix}언스포일러'):
+        elif ctx.content.startswith(f'{client.command_prefix}언스포일러'):
             await cmd_spoiler_convert(ctx, False)
             return
 
@@ -122,7 +121,7 @@ async def on_message(ctx):
         await ctx.channel.send(e)
 
 
-@bot.event
+@client.event
 async def on_reaction_add(reaction, user):
     if user.bot:
         return
@@ -186,7 +185,7 @@ def get_valid_emojies():
     return valid_emojies
 
 
-@bot.event
+@client.event
 async def on_reaction_remove(reaction, user):
     if user.bot:
         return
@@ -202,7 +201,7 @@ async def on_reaction_remove(reaction, user):
                 log(from_text(message), '개미 이모지 삭제 발견')
                 if '개미' in message.content or '미개' in message.content:
                     return
-                await message.remove_reaction(bot_env.get_env('GAMIE_EMOJI'), bot.user)
+                await message.remove_reaction(bot_env.get_env('GAMIE_EMOJI'), client.user)
                 log(from_text(message), '개미 이모지 삭제')
                 return
 
@@ -262,7 +261,7 @@ async def move_message(message, target_channel_id):
         header, content = await msg.split_header(message.author, is_mention)
         header = str(BotEditType.MOVED) + ' ' + header
         edited_message = await msg.edit(False, header, content)
-        target_channel = await bot.fetch_channel(target_channel_id)
+        target_channel = await client.fetch_channel(target_channel_id)
         await send_edited(target_channel, msg._message_type, edited_message)
     except Exception as e:
         if e.code == 50001:
@@ -299,7 +298,7 @@ async def cmd_move_message(ctx):
 
     args = ctx.content.split(' ')
     if len(args) <= 2:
-        raise BotException(ExceptionType.WRONG_COMMAND_ARGS, True, f'사용법 : {bot.command_prefix}이동 [메시지ID] [채널]')
+        raise BotException(ExceptionType.WRONG_COMMAND_ARGS, True, f'사용법 : {client.command_prefix}이동 [메시지ID] [채널]')
 
     message_id = args[1]
     channel_id = args[2]
@@ -329,7 +328,7 @@ async def cmd_spoiler_convert(ctx, is_spoiler):
 
     args = ctx.content.split(' ')
     if len(args) <= 1:
-        raise BotException(ExceptionType.WRONG_COMMAND_ARGS, True, f'사용법 : {bot.command_prefix}[스포일러|언스포일러] [메시지ID]')
+        raise BotException(ExceptionType.WRONG_COMMAND_ARGS, True, f'사용법 : {client.command_prefix}[스포일러|언스포일러] [메시지ID]')
 
     message_id = args[1]
 
@@ -361,7 +360,7 @@ def from_text(ctx):
 def log(fr, text):
     print(f'{fr} | {str(datetime.now())} | {text}')
 
-@bot.event
+@client.event
 async def on_command_error(ctx, error):
     log(from_text(ctx), error)
     await ctx.channel.send(error)
@@ -370,7 +369,7 @@ async def on_command_error(ctx, error):
 if __name__ == '__main__':
     try:
         environment.load_env()
-        bot.command_prefix = bot_env.get_env('PREFIX')
-        bot.run(bot_env.get_env('BOT_TOKEN'))
+        client.command_prefix = bot_env.get_env('PREFIX')
+        client.run(bot_env.get_env('BOT_TOKEN'))
     except Exception as e:
         print('.env 파일을 읽어 오는 중 오류가 발생하였습니다.\n원인 : ',e)

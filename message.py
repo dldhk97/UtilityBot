@@ -62,8 +62,7 @@ class Message:
     def __init__(self, message):
         self._message = message
         self._message_type = self._judge_type(message)
-
-        date = utc.localize(message.created_at).astimezone(KST)
+        date = message.created_at.astimezone(KST)
         self._date_str = str(date.strftime("%Y-%m-%d %H:%M"))
         self._bot_edited_type = BotEditType.check_type(message)
 
