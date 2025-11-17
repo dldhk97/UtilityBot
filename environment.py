@@ -19,6 +19,11 @@ def load_env():
     bot_env.env_initialize('USE_GAMIE_REACTION_MODE')
     bot_env.env_initialize('GAMIE_EMOJI', True)
 
+    # 개추 옵션
+    bot_env.env_initialize('USE_GAECHU_MODE')
+    bot_env.env_initialize('USE_GAECHU_REACTION_MODE')
+    bot_env.env_initialize('GAECHU_EMOJI', True)
+
     bot_env.env_initialize('USE_SPOILER_REACTION_MODE')
     bot_env.env_initialize('SPOILER_MENTION')
     bot_env.env_initialize('SPOILER_REACTION_EMOJI', True)
@@ -43,6 +48,14 @@ def load_env():
     if bot_env.get_env('USE_GAMIE_REACTION_MODE'):
         _env_none_check('GAMIE_EMOJI', '개미 리액션 옵션이 켜져있지만, 개미 이모지가 설정되어있지 않습니다.')
         bot_env._reaction_emojies.append('GAMIE_EMOJI')
+
+    # 개추 옵션 체크 및 리액션 이모지 등록
+    if bot_env.get_env('USE_GAECHU_MODE'):
+        _env_none_check('GAECHU_EMOJI', '개추 옵션이 켜져있지만, 개추 이모지가 설정되어있지 않습니다.')
+
+    if bot_env.get_env('USE_GAECHU_REACTION_MODE'):
+        _env_none_check('GAECHU_EMOJI', '개추 리액션 옵션이 켜져있지만, 개추 이모지가 설정되어있지 않습니다.')
+        bot_env._reaction_emojies.append('GAECHU_EMOJI')
 
     if bot_env.get_env('USE_SPOILER_REACTION_MODE'):
         _env_none_check('SPOILER_REACTION_EMOJI', '스포일러 옵션이 켜져있지만, 스포일러 이모지가 설정되어있지 않습니다.')

@@ -47,6 +47,10 @@ async def cmd_help(ctx):
     USE_GAMIE_REACTION_MODE = 'ON' if bot_env.get_env('USE_GAMIE_REACTION_MODE') else 'OFF'
     GAMIE_EMOJI = bot_env.get_env('GAMIE_EMOJI')
 
+    USE_GAECHU_MODE = 'ON' if bot_env.get_env('USE_GAECHU_MODE') else 'OFF'
+    USE_GAECHU_REACTION_MODE = 'ON' if bot_env.get_env('USE_GAECHU_REACTION_MODE') else 'OFF'
+    GAECHU_EMOJI = bot_env.get_env('GAECHU_EMOJI')
+
     USE_SPOILER_REACTION_MODE = 'ON' if bot_env.get_env('USE_SPOILER_REACTION_MODE') else 'OFF'
     SPOILER_MENTION = 'ON' if bot_env.get_env('SPOILER_MENTION') else 'OFF'
     SPOILER_REACTION_EMOJI = bot_env.get_env('SPOILER_REACTION_EMOJI')
@@ -78,6 +82,8 @@ async def cmd_help(ctx):
     embed.add_field(name='메시지 이동', value=f'{PREFIX}이동 [메시지ID] [채널ID] 로 메시지를 명령어로 채널간 이동시킬 수 있습니다.', inline=False)
     embed.add_field(name='개미옵션-' + USE_GAMIE_MODE, value='개미, 미개한 메시지가 보이면 개미 이모지를 답니다.', inline=False)
     embed.add_field(name='개미 리액션 옵션-' + USE_GAMIE_REACTION_MODE, value=f'메시지에 개미 이모지 {GAMIE_EMOJI} 가 달리면 동조합니다.', inline=False)
+    embed.add_field(name='개추옵션-' + USE_GAECHU_MODE, value='개추, 개춥 이 포함된 메시지가 보이면 개추 이모지를 답니다.', inline=False)
+    embed.add_field(name='개추 리액션 옵션-' + USE_GAECHU_REACTION_MODE, value=f'메시지에 개추 이모지 {GAECHU_EMOJI} 가 달리면 동조합니다.', inline=False)
 
     embed.set_footer(text='Embed 스포일러는 정상적으로 작동하지 않을 수 있습니다.')
     await ctx.channel.send(embed=embed)
@@ -110,6 +116,16 @@ async def on_message(ctx):
                 log(from_text(ctx), '개미 발견')
                 await ctx.add_reaction(bot_env.get_env('GAMIE_EMOJI'))
                 log(from_text(ctx), '개미 이모지 달았음')
+                return
+
+        if bot_env.get_env('USE_GAECHU_MODE') is True:
+            if ('개추' in ctx.content) or ('개춥' in ctx.content):
+                if not IS_READY:
+                    raise BotException(ExceptionType.BOT_NOT_READY)
+
+                log(from_text(ctx), '개추 발견')
+                await ctx.add_reaction(bot_env.get_env('GAECHU_EMOJI'))
+                log(from_text(ctx), '개추 이모지 달았음')
                 return
 
     except BotException as be:
@@ -148,7 +164,15 @@ async def on_reaction_add(reaction, user):
                 log(from_text(message), '개미 이모지 발견')
                 await message.add_reaction(bot_env.get_env('GAMIE_EMOJI'))
                 return
-        
+
+        if bot_env.get_env('USE_GAECHU_REACTION_MODE') is True:
+            if emoji == bot_env.get_env('GAECHU_EMOJI'):
+                if not IS_READY:
+                    raise BotException(ExceptionType.BOT_NOT_READY)
+                log(from_text(message), '개추 이모지 발견')
+                await message.add_reaction(bot_env.get_env('GAECHU_EMOJI'))
+                return
+
         if bot_env.get_env('USE_SPOILER_REACTION_MODE') is True:
             if emoji == bot_env.get_env('SPOILER_REACTION_EMOJI'):
                 log(from_text(message), '스포일러 이모지 발견')
